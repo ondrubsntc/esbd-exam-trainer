@@ -47,7 +47,7 @@ export default function Step1Read({ question }) {
   const remaining = items.length - revealed;
 
   const { markStep } = useProgress();
-  const { supported: ttsSupported, speaking, speak, stop } = useSpeech();
+  const { supported: ttsSupported, speaking, speak, stop, voices, voiceURI, setVoiceURI } = useSpeech();
 
   const done = !inAttemptGate && remaining === 0;
   useEffect(() => {
@@ -114,17 +114,33 @@ export default function Step1Read({ question }) {
           <div className="flex items-center justify-between pt-2">
             <div className="flex items-center gap-3">
               {ttsSupported && (
-                <button
-                  onClick={() => (speaking ? stop() : speak(toSpeakable(shown)))}
-                  className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition ${
-                    speaking
-                      ? "bg-stone-800 text-white hover:bg-stone-700"
-                      : "border border-stone-200 bg-white text-stone-600 hover:bg-stone-100"
-                  }`}
-                  title="Read the revealed text aloud (English)"
-                >
-                  {speaking ? "⏹ Stop" : "🔊 Read aloud"}
-                </button>
+                <>
+                  <button
+                    onClick={() => (speaking ? stop() : speak(toSpeakable(shown)))}
+                    className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition ${
+                      speaking
+                        ? "bg-stone-800 text-white hover:bg-stone-700"
+                        : "border border-stone-200 bg-white text-stone-600 hover:bg-stone-100"
+                    }`}
+                    title="Read the revealed text aloud (English)"
+                  >
+                    {speaking ? "⏹ Stop" : "🔊 Read aloud"}
+                  </button>
+                  {voices.length > 1 && (
+                    <select
+                      value={voiceURI}
+                      onChange={(e) => setVoiceURI(e.target.value)}
+                      title="Choose a voice"
+                      className="max-w-[11rem] rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-xs text-stone-600 focus:outline-none focus:ring-2 focus:ring-stone-300"
+                    >
+                      {voices.map((v) => (
+                        <option key={v.voiceURI} value={v.voiceURI}>
+                          {v.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </>
               )}
               <span className="text-xs text-stone-400">
                 Showing {revealed} of {items.length}
