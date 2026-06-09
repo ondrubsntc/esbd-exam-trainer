@@ -10,6 +10,7 @@
   "scripts": {
     "convert": "node scripts/convert-docx.mjs",
     "parse": "node scripts/parse.mjs",
+    "generate-study": "node --env-file=.env scripts/generate-study.mjs",
     "dev": "concurrently -k -n web,api -c blue,magenta \"npm:dev:web\" \"npm:dev:api\"",
     "dev:web": "vite",
     "dev:api": "node --watch --env-file=.env server/index.js",

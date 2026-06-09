@@ -22,8 +22,11 @@ npm run dev                   # web on http://localhost:5173, API on http://loca
 
 Open **http://localhost:5173**. The app launches on the **Today** queue.
 
-> The question data (`src/data/questions.json`) is already included — no build step needed.
-> Only if you edit the study material (`src/data/source.md`) do you need to re-run `npm run parse`.
+> The question data (`src/data/questions.json`) and the AI-generated study material
+> (`src/data/study.json` — the Step 2 blanks and Step 3 flashcards) are already included, so
+> there's no build step. Regenerate only if you change the source material:
+> `npm run parse` (re-parses `src/data/source.md`) and `npm run generate-study` (re-generates
+> blanks + flashcards via the Anthropic API; uses your key, run occasionally).
 > `npm run convert` regenerates `source.md` from the original Word doc and is rarely needed.
 
 ## How it works

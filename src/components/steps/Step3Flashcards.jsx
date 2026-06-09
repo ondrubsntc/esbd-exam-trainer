@@ -2,10 +2,11 @@ import { useMemo, useRef, useState } from "react";
 import Markdown from "../../lib/Markdown.jsx";
 import { useProgress } from "../../state/progress.jsx";
 import { BOX_INTERVALS_DAYS } from "../../lib/leitner.js";
+import study from "../../data/study.json";
 
-// Step 3 — Flashcards (active recall). Each theory chunk is a card: front = question title +
-// a sub-prompt (the chunk's leading bold label, if any); back = the chunk. Self-ratings feed
-// one Leitner transition for the whole deck (the most conservative rating wins).
+// Step 3 — Flashcards (active recall). Cards are AI-generated Q→A pairs (src/data/study.json):
+// front = a SPECIFIC recall prompt, back = a complete answer. Self-ratings feed one Leitner
+// transition for the whole deck (the most conservative rating wins).
 const RATINGS = [
   { key: "again", label: "Again", cls: "bg-red-500 hover:bg-red-600" },
   { key: "hard", label: "Hard", cls: "bg-amber-500 hover:bg-amber-600" },
@@ -13,20 +14,23 @@ const RATINGS = [
   { key: "easy", label: "Easy", cls: "bg-green-500 hover:bg-green-600" },
 ];
 
-function subPrompt(chunk) {
-  const m = chunk.match(/^\s*(?:- )?\*\*(.+?)\*\*/);
-  return m ? m[1].replace(/\s*[:.]\s*$/, "").trim() : null;
-}
-
 export default function Step3Flashcards({ question, onAdvance }) {
   const { getRecord, rateFlashcards } = useProgress();
-  const cards = useMemo(() => question.theory.chunks, [question]);
+  const cards = useMemo(() => study[question.id]?.flashcards ?? [], [question]);
 
   const priorBox = useRef(getRecord(question.id)?.box ?? 1);
   const [index, setIndex] = useState(0);
   const [showBack, setShowBack] = useState(false);
   const [ratings, setRatings] = useState([]);
   const [finished, setFinished] = useState(false);
+
+  if (cards.length === 0) {
+    return (
+      <div className="rounded-xl border border-dashed border-stone-300 bg-white/60 p-8 text-center text-sm text-stone-500">
+        No flashcards generated for this question yet.
+      </div>
+    );
+  }
 
   function rate(ratingKey) {
     const next = [...ratings, ratingKey];
@@ -86,7 +90,6 @@ export default function Step3Flashcards({ question, onAdvance }) {
   }
 
   const card = cards[index];
-  const prompt = subPrompt(card);
 
   return (
     <div>
@@ -98,17 +101,13 @@ export default function Step3Flashcards({ question, onAdvance }) {
       </div>
 
       <div className="min-h-[220px] rounded-xl border border-stone-200 bg-white p-6">
-        <div className="text-xs font-semibold uppercase tracking-wide text-stone-400">Recall</div>
-        <p className="mt-1 text-lg font-medium text-stone-800">{question.title}</p>
-        {prompt && (
-          <p className="mt-2 inline-block rounded-md bg-stone-100 px-2 py-1 text-sm text-stone-600">
-            {prompt}
-          </p>
-        )}
+        {/* question title is muted context; the card front is the specific recall prompt */}
+        <div className="text-[11px] font-medium uppercase tracking-wide text-stone-300">{question.title}</div>
+        <p className="mt-2 text-lg font-medium text-stone-800">{card.front}</p>
 
         {showBack ? (
           <div className="prose prose-stone prose-sm mt-5 max-w-none border-t border-stone-100 pt-5">
-            <Markdown>{card}</Markdown>
+            <Markdown>{card.back}</Markdown>
           </div>
         ) : (
           <p className="mt-5 text-sm text-stone-400">Say or think your answer, then reveal.</p>

@@ -1,9 +1,36 @@
 import { useEffect, useState } from "react";
 import Markdown from "../../lib/Markdown.jsx";
 import { useProgress } from "../../state/progress.jsx";
+import { useSpeech } from "../../lib/useSpeech.js";
+
+// Turn the revealed chunks into clean text for the speech engine (drop markdown markers).
+function stripForSpeech(text) {
+  return text
+    .replace(/\*\*/g, "")
+    .replace(/\*/g, "")
+    .replace(/^[-•]\s*/gm, "")
+    .replace(/^#+\s*/gm, "")
+    .replace(/\s*·\s*/g, ", ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function toSpeakable(shown) {
+  const parts = [];
+  let lastSection = null;
+  for (const it of shown) {
+    if (it.section !== lastSection) {
+      parts.push(it.section === "THEORY" ? "Theory." : "Practical application.");
+      lastSection = it.section;
+    }
+    parts.push(stripForSpeech(it.text));
+  }
+  return parts.join(" ");
+}
 
 // Step 1 — Deconstruction (chunked reading). Reveals theory then practical one chunk at a
 // time. Optional "Attempt first": brain-dump what you know before revealing (generation effect).
+// Optional "Read aloud": the browser reads the revealed text in English so you read along.
 export default function Step1Read({ question }) {
   const items = [
     ...question.theory.chunks.map((text) => ({ section: "THEORY", text })),
@@ -20,6 +47,8 @@ export default function Step1Read({ question }) {
   const remaining = items.length - revealed;
 
   const { markStep } = useProgress();
+  const { supported: ttsSupported, speaking, speak, stop } = useSpeech();
+
   const done = !inAttemptGate && remaining === 0;
   useEffect(() => {
     if (done) markStep(question.id, "read");
@@ -30,6 +59,7 @@ export default function Step1Read({ question }) {
     setAttemptFirst(nextAttemptFirst);
     setStarted(false);
     setRevealed(1);
+    stop();
   }
 
   return (
@@ -82,9 +112,24 @@ export default function Step1Read({ question }) {
           })}
 
           <div className="flex items-center justify-between pt-2">
-            <span className="text-xs text-stone-400">
-              Showing {revealed} of {items.length}
-            </span>
+            <div className="flex items-center gap-3">
+              {ttsSupported && (
+                <button
+                  onClick={() => (speaking ? stop() : speak(toSpeakable(shown)))}
+                  className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition ${
+                    speaking
+                      ? "bg-stone-800 text-white hover:bg-stone-700"
+                      : "border border-stone-200 bg-white text-stone-600 hover:bg-stone-100"
+                  }`}
+                  title="Read the revealed text aloud (English)"
+                >
+                  {speaking ? "⏹ Stop" : "🔊 Read aloud"}
+                </button>
+              )}
+              <span className="text-xs text-stone-400">
+                Showing {revealed} of {items.length}
+              </span>
+            </div>
             {remaining > 0 ? (
               <button
                 onClick={() => setRevealed((r) => Math.min(items.length, r + 1))}
