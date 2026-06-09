@@ -35,11 +35,7 @@ function DictationBox({ value, onChange, placeholder, rows = 5 }) {
           </button>
         )}
         {value && (
-          <button
-            type="button"
-            onClick={() => onChange("")}
-            className="text-sm font-medium text-stone-400 hover:text-stone-600"
-          >
+          <button type="button" onClick={() => onChange("")} className="text-sm font-medium text-stone-400 hover:text-stone-600">
             Clear
           </button>
         )}
@@ -55,25 +51,33 @@ function DictationBox({ value, onChange, placeholder, rows = 5 }) {
 
 export default function Step5Examiner({ question }) {
   const { getRecord, applyExaminer } = useProgress();
-  const priorBox = useRef(getRecord(question.id)?.box ?? 1);
+  const savedRec = getRecord(question.id);
+  const priorBox = useRef(savedRec?.box ?? 1);
 
-  const [phase, setPhase] = useState("compose"); // compose | thinking | followup | done | error
+  // Start by showing the last saved verdict (if any) so progress is visible across reloads.
+  const [phase, setPhase] = useState(savedRec?.lastExaminerFeedback ? "saved" : "compose"); // compose|thinking|followup|done|saved|error
   const [answer, setAnswer] = useState("");
   const [conversation, setConversation] = useState([]);
   const [examinerQuestion, setExaminerQuestion] = useState("");
   const [followups, setFollowups] = useState(0);
-  const [feedback, setFeedback] = useState(null);
+  const [feedback, setFeedback] = useState(savedRec?.lastExaminerFeedback ?? null);
   const [error, setError] = useState("");
+  const lastForceFinal = useRef(false);
 
   async function send(convo, forceFinal) {
+    lastForceFinal.current = forceFinal;
     setPhase("thinking");
     setError("");
     try {
       const result = await callExaminer({ mode: "examiner", question, messages: convo, forceFinal });
-      if (result.json && result.json.overall != null) {
+      const isFinal = result.json && result.json.overall != null;
+      if (isFinal) {
         setFeedback(result.json);
-        applyExaminer(question.id, clampScore(result.json.overall));
+        applyExaminer(question.id, clampScore(result.json.overall), result.json);
         setPhase("done");
+      } else if (forceFinal) {
+        setError("The examiner couldn't produce a verdict. Please retry.");
+        setPhase("error");
       } else {
         setConversation([...convo, { role: "assistant", content: result.raw }]);
         setExaminerQuestion(result.raw);
@@ -98,7 +102,15 @@ export default function Step5Examiner({ question }) {
     if (!answer.trim()) return;
     const convo = [...conversation, { role: "user", content: answer.trim() }];
     setConversation(convo);
-    send(convo, followups >= 2); // after 2 follow-ups, force the final verdict
+    send(convo, followups >= 1); // at most one follow-up, then the verdict
+  }
+
+  // End the dialogue now and get the verdict (includes the currently typed answer/reply, if any).
+  function finishNow() {
+    const convo = answer.trim() ? [...conversation, { role: "user", content: answer.trim() }] : conversation;
+    if (convo.length === 0) return; // need at least one answer to grade
+    setConversation(convo);
+    send(convo, true);
   }
 
   function restart() {
@@ -112,17 +124,25 @@ export default function Step5Examiner({ question }) {
     setError("");
   }
 
-  if (phase === "done" && feedback) {
+  if ((phase === "done" || phase === "saved") && feedback) {
     const rec = getRecord(question.id);
     const nextBox = rec?.box ?? priorBox.current;
-    const boxInfo = {
-      prior: priorBox.current,
-      next: nextBox,
-      days: BOX_INTERVALS_DAYS[nextBox],
-      dueText: rec?.due ? new Date(rec.due).toLocaleDateString() : "—",
-    };
+    const boxInfo =
+      phase === "done"
+        ? {
+            prior: priorBox.current,
+            next: nextBox,
+            days: BOX_INTERVALS_DAYS[nextBox],
+            dueText: rec?.due ? new Date(rec.due).toLocaleDateString() : "—",
+          }
+        : null;
     return (
       <div>
+        {phase === "saved" && rec?.lastExaminerAt && (
+          <div className="mb-3 text-xs text-stone-400">
+            Last verdict · {new Date(rec.lastExaminerAt).toLocaleString()}
+          </div>
+        )}
         <FeedbackCard feedback={feedback} boxInfo={boxInfo} />
         <button
           onClick={restart}
@@ -134,13 +154,15 @@ export default function Step5Examiner({ question }) {
     );
   }
 
+  const composing = phase === "compose";
+
   return (
     <div className="space-y-4">
       <p className="text-sm text-stone-500">
-        Deliver your full spoken answer as you would to the commission. The examiner will ask 1–2 follow-ups, then score you.
+        Deliver your full spoken answer as you would to the commission. The examiner asks one follow-up, then
+        scores you — or hit <span className="font-medium">Finish &amp; score me</span> whenever you're done.
       </p>
 
-      {/* Conversation so far */}
       {conversation.length > 0 && (
         <div className="space-y-3">
           {conversation.map((m, i) => (
@@ -165,7 +187,7 @@ export default function Step5Examiner({ question }) {
         <div className="rounded-lg border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
           <button
-            onClick={() => (conversation.length ? send(conversation, followups >= 2) : setPhase("compose"))}
+            onClick={() => (conversation.length ? send(conversation, lastForceFinal.current) : setPhase("compose"))}
             className="ml-2 font-medium underline"
           >
             Retry
@@ -173,7 +195,7 @@ export default function Step5Examiner({ question }) {
         </div>
       )}
 
-      {(phase === "compose" || phase === "followup" || phase === "error") && (
+      {(composing || phase === "followup" || phase === "error") && (
         <div className="rounded-xl border border-stone-200 bg-white p-5">
           {phase === "followup" && examinerQuestion && (
             <p className="mb-3 text-sm font-medium text-stone-700">Your reply to the examiner:</p>
@@ -181,16 +203,25 @@ export default function Step5Examiner({ question }) {
           <DictationBox
             value={answer}
             onChange={setAnswer}
-            rows={phase === "compose" ? 7 : 4}
-            placeholder={phase === "compose" ? "Deliver your full answer…" : "Reply to the follow-up…"}
+            rows={composing ? 7 : 4}
+            placeholder={composing ? "Deliver your full answer…" : "Reply to the follow-up…"}
           />
-          <button
-            onClick={phase === "compose" ? submitAnswer : sendReply}
-            disabled={!answer.trim()}
-            className="mt-3 rounded-lg bg-stone-800 px-4 py-2 text-sm font-medium text-white transition hover:bg-stone-700 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            {phase === "compose" ? "Submit answer →" : "Send reply →"}
-          </button>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <button
+              onClick={composing ? submitAnswer : sendReply}
+              disabled={!answer.trim()}
+              className="rounded-lg bg-stone-800 px-4 py-2 text-sm font-medium text-white transition hover:bg-stone-700 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {composing ? "Submit answer →" : "Send reply →"}
+            </button>
+            <button
+              onClick={finishNow}
+              disabled={composing && !answer.trim()}
+              className="rounded-lg border border-stone-200 bg-white px-4 py-2 text-sm font-medium text-stone-600 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Finish &amp; score me
+            </button>
+          </div>
         </div>
       )}
     </div>

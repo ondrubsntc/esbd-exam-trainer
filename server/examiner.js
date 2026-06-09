@@ -1,9 +1,12 @@
 // AI integration (build spec §5). One module, two modes, both routed through the backend so
 // the Anthropic key never reaches the browser. Grade MEANING, not wording.
+//
+// Reliability: the turns that MUST be JSON (practical-fit, and the examiner's final verdict)
+// use structured outputs (output_config.format) so the response is guaranteed valid JSON.
+// Free-text examiner follow-ups stay plain text and are parsed leniently.
 import Anthropic from "@anthropic-ai/sdk";
 
-// Model is swappable via env (spec §5). Default to Sonnet 4.6 for quality/cost on grading;
-// bump ANTHROPIC_MODEL to an Opus model (e.g. claude-opus-4-8) for tougher review.
+// Model is swappable via env (spec §5). Default to Sonnet 4.6 for quality/cost on grading.
 const MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-6";
 const MAX_TOKENS = 2048;
 
@@ -17,9 +20,61 @@ function getClient() {
   return new Anthropic({ apiKey });
 }
 
+// ---- structured-output schemas (additionalProperties:false; no min/max/minItems) ----
+const SCORE = { type: "integer" };
+const STR_ARRAY = { type: "array", items: { type: "string" } };
+const FIT = {
+  type: "object",
+  properties: {
+    score: SCORE,
+    verdict: { type: "string", enum: ["fits", "partly", "doesn't fit"] },
+    note: { type: "string" },
+  },
+  required: ["score", "verdict", "note"],
+  additionalProperties: false,
+};
+
+// Examiner final verdict — matches the fields FeedbackCard renders.
+const FEEDBACK_SCHEMA = {
+  type: "object",
+  properties: {
+    theoryCoverage: {
+      type: "object",
+      properties: { score: SCORE, covered: STR_ARRAY, missing: STR_ARRAY },
+      required: ["score", "covered", "missing"],
+      additionalProperties: false,
+    },
+    practicalFit: FIT,
+    clarity: {
+      type: "object",
+      properties: { score: SCORE, note: { type: "string" } },
+      required: ["score", "note"],
+      additionalProperties: false,
+    },
+    overall: SCORE,
+    strengths: STR_ARRAY,
+    fixes: STR_ARRAY,
+    modelMiniAnswer: { type: "string" },
+  },
+  required: ["theoryCoverage", "practicalFit", "clarity", "overall", "strengths", "fixes", "modelMiniAnswer"],
+  additionalProperties: false,
+};
+
+const PRACTICAL_FIT_SCHEMA = {
+  type: "object",
+  properties: {
+    practicalFit: FIT,
+    strengths: STR_ARRAY,
+    missing: STR_ARRAY,
+    sharperVersion: { type: "string" },
+  },
+  required: ["practicalFit", "strengths", "missing", "sharperVersion"],
+  additionalProperties: false,
+};
+
 const PROJECTS_NOTE = `The student may give their own real-world practical examples (their projects: Ondruš & Partners / Dubai real-estate advisory, a German-goods e-shop, a dropshipping store, a registered cooperative). Judge any practical example on whether it correctly demonstrates the concept — never against a stored example.`;
 
-// §5.1 examiner mode — multi-turn. Emits a plain-text follow-up OR the final feedback JSON.
+// §5.1 examiner mode — multi-turn. Emits a plain-text follow-up OR (on the final turn) the verdict.
 function examinerSystem({ title, examArea, theoryRaw }, forceFinal) {
   return `You are an oral state-exam examiner for a Czech business programme (the exam is in English). The student is answering this question:
 
@@ -35,21 +90,12 @@ ${PROJECTS_NOTE}
 
 Behave like a real commission:
 1. Read the student's answer.
-2. Ask 1–2 focused follow-up questions to probe understanding. Ask ONE at a time, as plain text (no JSON).
-3. After their replies, STOP asking and return the final feedback as JSON ONLY (no prose, no code fences):
-{
-  "theoryCoverage": { "score": 1-5, "covered": ["..."], "missing": ["..."] },
-  "practicalFit": { "score": 1-5, "verdict": "fits|partly|doesn't fit", "note": "..." },
-  "clarity": { "score": 1-5, "note": "spoken-delivery feedback" },
-  "overall": 1-5,
-  "strengths": ["..."],
-  "fixes": ["concrete, sayable improvements"],
-  "modelMiniAnswer": "2-3 sentence example of a strong spoken answer"
-}
+2. Ask at most ONE focused follow-up question to probe understanding — plain text, no JSON.
+3. After their reply, return the final feedback as JSON.
 
-Rules: Output EITHER a single follow-up question as plain text, OR the final feedback JSON — never both. Ask at most TWO follow-up questions in total. Grade meaning, not wording. Be encouraging but honest.${
+Grade meaning, not wording. Be encouraging but honest.${
     forceFinal
-      ? "\n\nThe student has now answered your follow-ups. STOP asking questions and return ONLY the final feedback JSON now."
+      ? "\n\nThe student is finished. Do NOT ask another question — return ONLY the final feedback JSON now (theoryCoverage, practicalFit, clarity, overall 1-5, strengths, fixes, modelMiniAnswer)."
       : ""
   }`;
 }
@@ -68,33 +114,45 @@ ${theoryRaw}
 
 ${PROJECTS_NOTE}
 
-The student will give their OWN practical example. Judge it ONLY on whether it correctly illustrates the concept — do not compare it to any stored example. Return JSON ONLY (no prose, no code fences):
-{
-  "practicalFit": { "score": 1-5, "verdict": "fits|partly|doesn't fit", "note": "..." },
-  "strengths": ["what's strong about the example"],
-  "missing": ["what's missing or misapplied"],
-  "sharperVersion": "one sharper version of the example they could say out loud"
-}`;
+The student will give their OWN practical example. Judge it ONLY on whether it correctly illustrates the concept — do not compare it to any stored example. Return the structured verdict (practicalFit with score 1-5 and verdict, strengths, missing, and one sharper version they could say out loud).`;
 }
 
 function stripFences(text) {
-  return text
-    .trim()
-    .replace(/^```(?:json)?\s*/i, "")
-    .replace(/\s*```$/, "")
-    .trim();
+  return text.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
 }
 
-// Tolerant JSON parse: strip code fences, then fall back to the first {...} block.
+// Pull the first complete {...} object out of text, respecting strings/escapes (robust to prose).
+function extractFirstJsonObject(text) {
+  const start = text.indexOf("{");
+  if (start < 0) return null;
+  let depth = 0;
+  let inStr = false;
+  let esc = false;
+  for (let i = start; i < text.length; i++) {
+    const c = text[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (c === "\\") esc = true;
+      else if (c === '"') inStr = false;
+    } else if (c === '"') inStr = true;
+    else if (c === "{") depth += 1;
+    else if (c === "}") {
+      depth -= 1;
+      if (depth === 0) return text.slice(start, i + 1);
+    }
+  }
+  return null;
+}
+
 function tryParseJSON(text) {
   const stripped = stripFences(text);
   try {
     return JSON.parse(stripped);
   } catch {
-    const match = stripped.match(/\{[\s\S]*\}/);
-    if (match) {
+    const obj = extractFirstJsonObject(stripped);
+    if (obj) {
       try {
-        return JSON.parse(match[0]);
+        return JSON.parse(obj);
       } catch {
         /* fall through */
       }
@@ -106,16 +164,18 @@ function tryParseJSON(text) {
 // messages: full conversation history [{ role: "user"|"assistant", content: string }].
 export async function runExaminer({ mode, question, messages, forceFinal }) {
   const client = getClient();
-  const system =
-    mode === "practical-fit" ? practicalFitSystem(question) : examinerSystem(question, forceFinal);
+  const isPractical = mode === "practical-fit";
+  const system = isPractical ? practicalFitSystem(question) : examinerSystem(question, forceFinal);
 
-  const response = await client.messages.create({
-    model: MODEL,
-    max_tokens: MAX_TOKENS,
-    system,
-    messages,
-  });
+  const params = { model: MODEL, max_tokens: MAX_TOKENS, system, messages };
+  // Guarantee valid JSON whenever the response must be a structured verdict.
+  if (isPractical) {
+    params.output_config = { format: { type: "json_schema", schema: PRACTICAL_FIT_SCHEMA } };
+  } else if (forceFinal) {
+    params.output_config = { format: { type: "json_schema", schema: FEEDBACK_SCHEMA } };
+  }
 
+  const response = await client.messages.create(params);
   const raw = response.content
     .filter((b) => b.type === "text")
     .map((b) => b.text)

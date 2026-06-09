@@ -106,10 +106,15 @@ export function ProgressProvider({ children }) {
         const rated = applyFlashcardRating(r, worstRating(ratings));
         return { ...rated, steps: { ...rated.steps, flashcard: true } };
       }),
-    applyExaminer: (id, score) =>
+    applyExaminer: (id, score, feedback) =>
       update(id, (r) => {
-        const graded = applyExaminerScore(r, score);
-        return { ...graded, steps: { ...graded.steps, examiner: true } };
+        const graded = applyExaminerScore(r, score); // sets box, due, lastExaminerScore
+        return {
+          ...graded,
+          lastExaminerFeedback: feedback ?? r.lastExaminerFeedback ?? null,
+          lastExaminerAt: new Date().toISOString(),
+          steps: { ...graded.steps, examiner: true },
+        };
       }),
   };
 
