@@ -8,6 +8,17 @@ function Bar({ pct, className }) {
   );
 }
 
+// A stacked bar across ALL questions: coloured segments by band, grey track = not started.
+function SegmentedBar({ parts }) {
+  return (
+    <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-stone-100">
+      {parts.map((p, i) =>
+        p.pct > 0 ? <div key={i} className={p.className} style={{ width: `${p.pct}%` }} title={p.title} /> : null
+      )}
+    </div>
+  );
+}
+
 // Examiner-score bands: 1–2 red, 3 orange, 4–5 green.
 function scoreBarClass(score) {
   if (score == null) return "bg-stone-200";
@@ -23,26 +34,31 @@ export default function ReadinessDashboard({ questions, subjects }) {
 
   const stats = subjects.map((s) => {
     const qs = questions.filter((q) => q.subjectId === s.id);
-    let started = 0;
-    let mastered = 0;
+    let weak = 0; // box 1–2
+    let mid = 0; // box 3
+    let strong = 0; // box 4–5
     let scoreSum = 0;
     let scoreN = 0;
     for (const q of qs) {
       const r = records[q.id];
       if (!r) continue;
-      started += 1;
-      if (r.box >= 3) mastered += 1;
+      if (r.box >= 4) strong += 1;
+      else if (r.box === 3) mid += 1;
+      else weak += 1;
       if (r.lastExaminerScore != null) {
         scoreSum += r.lastExaminerScore;
         scoreN += 1;
       }
     }
+    const started = weak + mid + strong;
     return {
       ...s,
       total: qs.length,
       started,
-      mastered,
-      masteredPct: qs.length ? Math.round((mastered / qs.length) * 100) : 0,
+      weak,
+      mid,
+      strong,
+      mastered: mid + strong,
       avgScore: scoreN ? scoreSum / scoreN : null,
     };
   });
@@ -57,12 +73,6 @@ export default function ReadinessDashboard({ questions, subjects }) {
       <p className="mt-1 text-sm text-stone-500">
         Overall {overallMastered}/{overallTotal} questions at box ≥ 3 ({overallPct}%).
       </p>
-      <div className="mt-2 flex items-center gap-3 text-xs text-stone-400">
-        <span>Examiner score:</span>
-        <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-red-500" />1–2</span>
-        <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-orange-500" />3</span>
-        <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-green-500" />4–5</span>
-      </div>
 
       <div className="mt-8 space-y-4">
         {stats.map((s) => (
@@ -77,12 +87,22 @@ export default function ReadinessDashboard({ questions, subjects }) {
             <div className="mt-4 space-y-3">
               <div>
                 <div className="mb-1 flex justify-between text-xs text-stone-500">
-                  <span>Mastered (box ≥ 3)</span>
-                  <span className="font-medium">
-                    {s.mastered}/{s.total} · {s.masteredPct}%
-                  </span>
+                  <span>Mastery across all {s.total} questions</span>
+                  <span className="font-medium">{s.mastered}/{s.total} at box ≥ 3</span>
                 </div>
-                <Bar pct={s.masteredPct} className="bg-green-500" />
+                <SegmentedBar
+                  parts={[
+                    { pct: (s.weak / s.total) * 100, className: "bg-red-500", title: `${s.weak} at box 1–2` },
+                    { pct: (s.mid / s.total) * 100, className: "bg-orange-500", title: `${s.mid} at box 3` },
+                    { pct: (s.strong / s.total) * 100, className: "bg-green-500", title: `${s.strong} at box 4–5` },
+                  ]}
+                />
+                <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-stone-500">
+                  <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-red-500" />{s.weak} box 1–2</span>
+                  <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-orange-500" />{s.mid} box 3</span>
+                  <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-green-500" />{s.strong} box 4–5</span>
+                  {s.total - s.started > 0 && <span className="text-stone-400">{s.total - s.started} not started</span>}
+                </div>
               </div>
 
               <div>
