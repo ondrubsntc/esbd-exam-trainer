@@ -1,0 +1,105 @@
+import { useEffect, useState } from "react";
+import Markdown from "../../lib/Markdown.jsx";
+import { useProgress } from "../../state/progress.jsx";
+
+// Step 1 — Deconstruction (chunked reading). Reveals theory then practical one chunk at a
+// time. Optional "Attempt first": brain-dump what you know before revealing (generation effect).
+export default function Step1Read({ question }) {
+  const items = [
+    ...question.theory.chunks.map((text) => ({ section: "THEORY", text })),
+    ...question.practical.chunks.map((text) => ({ section: "PRACTICAL APPLICATION", text })),
+  ];
+
+  const [attemptFirst, setAttemptFirst] = useState(false);
+  const [started, setStarted] = useState(false);
+  const [brainDump, setBrainDump] = useState("");
+  const [revealed, setRevealed] = useState(1); // first chunk is shown immediately
+
+  const inAttemptGate = attemptFirst && !started;
+  const shown = inAttemptGate ? [] : items.slice(0, revealed);
+  const remaining = items.length - revealed;
+
+  const { markStep } = useProgress();
+  const done = !inAttemptGate && remaining === 0;
+  useEffect(() => {
+    if (done) markStep(question.id, "read");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [done, question.id]);
+
+  function resetReveal(nextAttemptFirst) {
+    setAttemptFirst(nextAttemptFirst);
+    setStarted(false);
+    setRevealed(1);
+  }
+
+  return (
+    <div>
+      <label className="mb-5 flex cursor-pointer select-none items-center gap-2 text-sm text-stone-600">
+        <input
+          type="checkbox"
+          checked={attemptFirst}
+          onChange={(e) => resetReveal(e.target.checked)}
+          className="h-4 w-4 rounded border-stone-300"
+        />
+        Attempt first — brain-dump what I already know before revealing
+      </label>
+
+      {inAttemptGate ? (
+        <div className="rounded-xl border border-stone-200 bg-white p-6">
+          <p className="mb-3 text-sm text-stone-500">
+            Write everything you can recall about this question, then reveal the material.
+          </p>
+          <textarea
+            value={brainDump}
+            onChange={(e) => setBrainDump(e.target.value)}
+            rows={6}
+            placeholder="Type your brain-dump…"
+            className="w-full resize-y rounded-lg border border-stone-200 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-stone-300"
+          />
+          <button
+            onClick={() => setStarted(true)}
+            className="mt-4 rounded-lg bg-stone-800 px-4 py-2 text-sm font-medium text-white transition hover:bg-stone-700"
+          >
+            Reveal material →
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {shown.map((item, i) => {
+            const newSection = i === 0 || shown[i - 1].section !== item.section;
+            return (
+              <div key={i}>
+                {newSection && (
+                  <div className="mb-2 mt-6 text-xs font-bold uppercase tracking-wide text-stone-400 first:mt-0">
+                    {item.section}
+                  </div>
+                )}
+                <div className="prose prose-stone prose-sm max-w-none rounded-xl border border-stone-200 bg-white p-5">
+                  <Markdown>{item.text}</Markdown>
+                </div>
+              </div>
+            );
+          })}
+
+          <div className="flex items-center justify-between pt-2">
+            <span className="text-xs text-stone-400">
+              Showing {revealed} of {items.length}
+            </span>
+            {remaining > 0 ? (
+              <button
+                onClick={() => setRevealed((r) => Math.min(items.length, r + 1))}
+                className="rounded-lg bg-stone-800 px-4 py-2 text-sm font-medium text-white transition hover:bg-stone-700"
+              >
+                Next →
+              </button>
+            ) : (
+              <span className="rounded-lg border border-green-100 bg-green-50 px-4 py-2 text-sm text-green-800">
+                ✓ Whole answer read
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
