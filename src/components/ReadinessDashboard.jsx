@@ -73,6 +73,11 @@ export default function ReadinessDashboard({ questions, subjects }) {
       <p className="mt-1 text-sm text-stone-500">
         Overall {overallMastered}/{overallTotal} questions at box ≥ 3 ({overallPct}%).
       </p>
+      <p className="mt-2 max-w-prose text-xs leading-relaxed text-stone-400">
+        Bar colours show your <span className="font-medium text-stone-500">Leitner box</span> (memory strength,
+        1–5) — not your exam score. A question's box rises when you rate its flashcards Good/Easy or score ≥ 4
+        with the examiner; a score of 3 holds the box where it is, and ≤ 2 resets it to box 1.
+      </p>
 
       <div className="mt-8 space-y-4">
         {stats.map((s) => (
