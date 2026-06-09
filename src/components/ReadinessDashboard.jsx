@@ -8,6 +8,14 @@ function Bar({ pct, className }) {
   );
 }
 
+// Examiner-score bands: 1–2 red, 3 orange, 4–5 green.
+function scoreBarClass(score) {
+  if (score == null) return "bg-stone-200";
+  if (score < 2.5) return "bg-red-500";
+  if (score < 3.5) return "bg-orange-500";
+  return "bg-green-500";
+}
+
 // Readiness dashboard (spec §3): per subject, % of questions in box ≥ 3 and average last
 // examiner score — so the user sees where to focus.
 export default function ReadinessDashboard({ questions, subjects }) {
@@ -49,6 +57,12 @@ export default function ReadinessDashboard({ questions, subjects }) {
       <p className="mt-1 text-sm text-stone-500">
         Overall {overallMastered}/{overallTotal} questions at box ≥ 3 ({overallPct}%).
       </p>
+      <div className="mt-2 flex items-center gap-3 text-xs text-stone-400">
+        <span>Examiner score:</span>
+        <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-red-500" />1–2</span>
+        <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-orange-500" />3</span>
+        <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-green-500" />4–5</span>
+      </div>
 
       <div className="mt-8 space-y-4">
         {stats.map((s) => (
@@ -71,12 +85,15 @@ export default function ReadinessDashboard({ questions, subjects }) {
                 <Bar pct={s.masteredPct} className="bg-green-500" />
               </div>
 
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-stone-500">Avg. last examiner score</span>
-                <span className="font-semibold text-stone-800">
-                  {s.avgScore != null ? s.avgScore.toFixed(1) : "—"}
-                  <span className="font-normal text-stone-400"> / 5</span>
-                </span>
+              <div>
+                <div className="mb-1 flex justify-between text-xs text-stone-500">
+                  <span>Avg. last examiner score</span>
+                  <span className="font-medium">
+                    {s.avgScore != null ? s.avgScore.toFixed(1) : "—"}
+                    <span className="font-normal text-stone-400"> / 5</span>
+                  </span>
+                </div>
+                <Bar pct={s.avgScore != null ? (s.avgScore / 5) * 100 : 0} className={scoreBarClass(s.avgScore)} />
               </div>
             </div>
           </div>
