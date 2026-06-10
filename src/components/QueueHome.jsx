@@ -1,5 +1,5 @@
 import { useProgress } from "../state/progress.jsx";
-import { buildQueue } from "../lib/queue.js";
+import { buildQueue, dueLabel } from "../lib/queue.js";
 
 const BOX_CLASSES = {
   1: "bg-red-100 text-red-700",
@@ -101,7 +101,7 @@ export default function QueueHome({ questions, onOpen, onCommission }) {
                   {q.number}
                 </span>
                 <span className="line-clamp-1 flex-1">{q.title}</span>
-                <span className="shrink-0 text-xs">due {new Date(records[q.id].due).toLocaleDateString()}</span>
+                <span className="shrink-0 text-xs">due {dueLabel(records[q.id].due)}</span>
               </div>
             ))}
           </div>

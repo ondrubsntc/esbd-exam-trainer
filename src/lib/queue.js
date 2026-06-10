@@ -1,10 +1,26 @@
 // Today / Due queue logic (spec §3). A question is:
-//  - "due"      — has an SRS due date that has arrived (review it)
+//  - "due"      — its review day has arrived (today or earlier) → review it
 //  - "new"      — never entered spaced repetition yet (no record, or never rated)
-//  - "upcoming" — scheduled, but the due date is still in the future
+//  - "upcoming" — scheduled for a future day
+// Compare by calendar DAY, not exact time, so a question due later today still counts as due.
+function startOfDay(d) {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+
 export function classify(record, now = new Date()) {
   if (!record || !record.due) return "new";
-  return new Date(record.due) <= now ? "due" : "upcoming";
+  return startOfDay(record.due) <= startOfDay(now) ? "due" : "upcoming";
+}
+
+// Friendly relative label for a future due date: "tomorrow", "in 3 days", or a date.
+export function dueLabel(due, now = new Date()) {
+  const days = Math.round((startOfDay(due) - startOfDay(now)) / 86400000);
+  if (days <= 0) return "today";
+  if (days === 1) return "tomorrow";
+  if (days <= 7) return `in ${days} days`;
+  return new Date(due).toLocaleDateString();
 }
 
 // Round-robin across subjects so reviews interleave instead of blocking by subject.
