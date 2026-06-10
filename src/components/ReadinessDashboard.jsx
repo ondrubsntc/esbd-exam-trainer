@@ -1,4 +1,5 @@
 import { useProgress } from "../state/progress.jsx";
+import { boxFillClass } from "../lib/boxColor.js";
 
 function Bar({ pct, className }) {
   return (
@@ -34,31 +35,34 @@ export default function ReadinessDashboard({ questions, subjects }) {
 
   const stats = subjects.map((s) => {
     const qs = questions.filter((q) => q.subjectId === s.id);
-    let weak = 0; // box 1–2
-    let mid = 0; // box 3
-    let strong = 0; // box 4–5
+    let b1 = 0;
+    let b2 = 0;
+    let b3 = 0;
+    let b45 = 0; // box 4–5
     let scoreSum = 0;
     let scoreN = 0;
     for (const q of qs) {
       const r = records[q.id];
       if (!r) continue;
-      if (r.box >= 4) strong += 1;
-      else if (r.box === 3) mid += 1;
-      else weak += 1;
+      if (r.box >= 4) b45 += 1;
+      else if (r.box === 3) b3 += 1;
+      else if (r.box === 2) b2 += 1;
+      else b1 += 1;
       if (r.lastExaminerScore != null) {
         scoreSum += r.lastExaminerScore;
         scoreN += 1;
       }
     }
-    const started = weak + mid + strong;
+    const started = b1 + b2 + b3 + b45;
     return {
       ...s,
       total: qs.length,
       started,
-      weak,
-      mid,
-      strong,
-      mastered: mid + strong,
+      b1,
+      b2,
+      b3,
+      b45,
+      mastered: b3 + b45,
       avgScore: scoreN ? scoreSum / scoreN : null,
     };
   });
@@ -97,15 +101,17 @@ export default function ReadinessDashboard({ questions, subjects }) {
                 </div>
                 <SegmentedBar
                   parts={[
-                    { pct: (s.weak / s.total) * 100, className: "bg-red-500", title: `${s.weak} at box 1–2` },
-                    { pct: (s.mid / s.total) * 100, className: "bg-orange-500", title: `${s.mid} at box 3` },
-                    { pct: (s.strong / s.total) * 100, className: "bg-green-500", title: `${s.strong} at box 4–5` },
+                    { pct: (s.b1 / s.total) * 100, className: boxFillClass(1), title: `${s.b1} at box 1` },
+                    { pct: (s.b2 / s.total) * 100, className: boxFillClass(2), title: `${s.b2} at box 2` },
+                    { pct: (s.b3 / s.total) * 100, className: boxFillClass(3), title: `${s.b3} at box 3` },
+                    { pct: (s.b45 / s.total) * 100, className: boxFillClass(4), title: `${s.b45} at box 4–5` },
                   ]}
                 />
                 <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-stone-500">
-                  <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-red-500" />{s.weak} box 1–2</span>
-                  <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-orange-500" />{s.mid} box 3</span>
-                  <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-green-500" />{s.strong} box 4–5</span>
+                  <span className="flex items-center gap-1"><span className={`h-2 w-2 rounded-full ${boxFillClass(1)}`} />B1 {s.b1}</span>
+                  <span className="flex items-center gap-1"><span className={`h-2 w-2 rounded-full ${boxFillClass(2)}`} />B2 {s.b2}</span>
+                  <span className="flex items-center gap-1"><span className={`h-2 w-2 rounded-full ${boxFillClass(3)}`} />B3 {s.b3}</span>
+                  <span className="flex items-center gap-1"><span className={`h-2 w-2 rounded-full ${boxFillClass(4)}`} />B4–5 {s.b45}</span>
                   {s.total - s.started > 0 && <span className="text-stone-400">{s.total - s.started} not started</span>}
                 </div>
               </div>

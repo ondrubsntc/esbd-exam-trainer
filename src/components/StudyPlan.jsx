@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useProgress } from "../state/progress.jsx";
-import { buildPlan, daysUntil, stepForAction } from "../lib/plan.js";
+import { buildPlan, daysUntil } from "../lib/plan.js";
+import TodayTasks from "./TodayTasks.jsx";
 
 const EXAM_KEY = "esbd.examDate";
 const NPD_KEY = "esbd.newPerDay";
@@ -21,44 +22,6 @@ const setLocal = (k, v) => {
 
 function Segment({ pct, className, title }) {
   return pct > 0 ? <div className={className} style={{ width: `${pct}%` }} title={title} /> : null;
-}
-
-function TaskGroup({ icon, title, hint, action, items, records, onOpen }) {
-  if (!items.length) return null;
-  const step = stepForAction(action);
-  return (
-    <section className="rounded-xl border border-stone-200 bg-white p-4">
-      <div className="flex items-baseline justify-between">
-        <h3 className="text-sm font-semibold text-stone-800">
-          {icon} {title} <span className="font-normal text-stone-400">({items.length})</span>
-        </h3>
-        <span className="text-xs text-stone-400">{hint}</span>
-      </div>
-      <ul className="mt-2 divide-y divide-stone-100">
-        {items.map((q) => {
-          const r = records[q.id];
-          return (
-            <li key={q.id}>
-              <button
-                onClick={() => onOpen(q.id, step)}
-                className="flex w-full items-center gap-3 py-2 text-left transition hover:bg-stone-50"
-              >
-                <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-stone-100 text-[11px] font-semibold text-stone-500">
-                  {q.number}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-[11px] uppercase tracking-wide text-stone-400">{q.subject}</span>
-                  <span className="line-clamp-1 text-sm text-stone-700">{q.title}</span>
-                </span>
-                {r && <span className="shrink-0 text-[10px] text-stone-400">box {r.box}</span>}
-                <span className="shrink-0 text-sm text-stone-400">→</span>
-              </button>
-            </li>
-          );
-        })}
-      </ul>
-    </section>
-  );
 }
 
 // Study plan (David's spiral): turns his current progress into a concrete daily to-do toward the exam.
@@ -178,11 +141,8 @@ export default function StudyPlan({ questions, onOpen }) {
             : "Nothing queued right now. Add more “New / day” or check Today for due reviews."}
         </p>
       ) : (
-        <div className="mt-3 space-y-3">
-          <TaskGroup icon="🔁" title="Reinforce" hint="Flashcards" action="reinforce" items={today.reinforce} records={records} onOpen={onOpen} />
-          <TaskGroup icon="🎙️" title="Examine" hint="Examiner" action="examine" items={today.examine} records={records} onOpen={onOpen} />
-          <TaskGroup icon="⭐" title="Shore up weak" hint="Examiner again" action="shore-up" items={today.shoreUp} records={records} onOpen={onOpen} />
-          <TaskGroup icon="🆕" title="Introduce new" hint="Read + Blanks" action="introduce" items={today.introduce} records={records} onOpen={onOpen} />
+        <div className="mt-3">
+          <TodayTasks today={today} records={records} onOpen={onOpen} />
         </div>
       )}
     </div>

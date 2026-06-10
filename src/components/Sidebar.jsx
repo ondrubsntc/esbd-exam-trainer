@@ -1,13 +1,5 @@
 import { useProgress } from "../state/progress.jsx";
-
-// Leitner box → colour, from "needs work" (1) to "mastered" (5).
-const BOX_CLASSES = {
-  1: "bg-red-100 text-red-700",
-  2: "bg-orange-100 text-orange-700",
-  3: "bg-amber-100 text-amber-700",
-  4: "bg-lime-100 text-lime-700",
-  5: "bg-green-100 text-green-700",
-};
+import { boxPillClass } from "../lib/boxColor.js";
 
 const NAV = [
   { id: "home", label: "Today", icon: "📅" },
@@ -85,9 +77,9 @@ export default function Sidebar({ subjects, questions, view, selectedId, onNavig
                         </span>
                         {record && (
                           <span
-                            className={`mt-0.5 inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
-                              BOX_CLASSES[record.box]
-                            }`}
+                            className={`mt-0.5 inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${boxPillClass(
+                              record.box
+                            )}`}
                             title={`Leitner box ${record.box}${allDone ? " · all steps done" : ""}`}
                           >
                             {allDone && "✓"}B{record.box}
