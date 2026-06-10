@@ -11,6 +11,7 @@ const BOX_CLASSES = {
 
 const NAV = [
   { id: "home", label: "Today", icon: "📅" },
+  { id: "plan", label: "Study plan", icon: "🗺️" },
   { id: "commission", label: "Commission mode", icon: "🎓" },
   { id: "dashboard", label: "Readiness", icon: "📊" },
 ];

@@ -5,6 +5,7 @@ import QuestionView from "./components/QuestionView.jsx";
 import QueueHome from "./components/QueueHome.jsx";
 import CommissionMode from "./components/CommissionMode.jsx";
 import ReadinessDashboard from "./components/ReadinessDashboard.jsx";
+import StudyPlan from "./components/StudyPlan.jsx";
 import { useProgress } from "./state/progress.jsx";
 
 export default function App() {
@@ -48,6 +49,7 @@ export default function App() {
         {view === "home" && (
           <QueueHome questions={questions} onOpen={openQuestion} onCommission={() => setView("commission")} />
         )}
+        {view === "plan" && <StudyPlan questions={questions} onOpen={openQuestion} />}
         {view === "commission" && <CommissionMode questions={questions} subjects={subjects} />}
         {view === "dashboard" && <ReadinessDashboard questions={questions} subjects={subjects} />}
         {view === "question" &&
