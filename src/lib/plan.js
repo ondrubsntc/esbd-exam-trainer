@@ -26,9 +26,9 @@ export function nextAction(record, now = new Date()) {
 const STEP_FOR = { introduce: 1, reinforce: 3, examine: 5, "shore-up": 5 };
 export const stepForAction = (action) => STEP_FOR[action] ?? 1;
 
-export function buildPlan(questions, records, { newPerDay = 10, now = new Date() } = {}) {
+export function buildPlan(questions, records, { dailyTarget = 12, now = new Date() } = {}) {
   const counts = { new: 0, introduced: 0, reinforced: 0, examined: 0, ready: 0 };
-  const groups = { introduce: [], reinforce: [], examine: [], shoreUp: [] };
+  const all = { introduce: [], reinforce: [], examine: [], shoreUp: [] };
 
   for (const q of questions) {
     const r = records[q.id];
@@ -45,25 +45,52 @@ export function buildPlan(questions, records, { newPerDay = 10, now = new Date()
     }
 
     const action = nextAction(r, now);
-    if (action === "introduce") groups.introduce.push(q);
-    else if (action === "reinforce") groups.reinforce.push(q);
-    else if (action === "examine") groups.examine.push(q);
-    else if (action === "shore-up") groups.shoreUp.push(q);
+    if (action === "introduce") all.introduce.push(q);
+    else if (action === "reinforce") all.reinforce.push(q);
+    else if (action === "examine") all.examine.push(q);
+    else if (action === "shore-up") all.shoreUp.push(q);
   }
 
   // Weakest-first for the shore-up pass (lowest box, then lowest last examiner score).
-  groups.shoreUp.sort((a, b) => {
+  all.shoreUp.sort((a, b) => {
     const ra = records[a.id];
     const rb = records[b.id];
     return ra.box - rb.box || (ra.lastExaminerScore ?? 9) - (rb.lastExaminerScore ?? 9);
   });
 
-  const today = {
-    introduce: groups.introduce.slice(0, newPerDay),
-    reinforce: groups.reinforce,
-    examine: groups.examine,
-    shoreUp: groups.shoreUp.slice(0, 8),
+  // Round-robin across the activity types up to the daily budget, so a day is bounded and the
+  // passes interleave (a few new Read+Blanks, a few of yesterday's Flashcards, a few Examiner…)
+  // instead of dumping every pending task at once.
+  const pools = {
+    reinforce: [...all.reinforce],
+    examine: [...all.examine],
+    shoreUp: [...all.shoreUp],
+    introduce: [...all.introduce],
+  };
+  const order = ["reinforce", "examine", "shoreUp", "introduce"];
+  const today = { reinforce: [], examine: [], shoreUp: [], introduce: [] };
+  let budget = Math.max(1, dailyTarget);
+  let moved = true;
+  while (budget > 0 && moved) {
+    moved = false;
+    for (const key of order) {
+      if (budget <= 0) break;
+      if (pools[key].length) {
+        today[key].push(pools[key].shift());
+        budget -= 1;
+        moved = true;
+      }
+    }
+  }
+
+  // Passes still needed to get every question examined at least once (drives the pace estimate).
+  const remainingPasses = counts.new * 3 + counts.introduced * 2 + counts.reinforced;
+  const pending = {
+    introduce: all.introduce.length,
+    reinforce: all.reinforce.length,
+    examine: all.examine.length,
+    shoreUp: all.shoreUp.length,
   };
 
-  return { counts, today, introduceRemaining: groups.introduce.length };
+  return { counts, today, remainingPasses, pending };
 }

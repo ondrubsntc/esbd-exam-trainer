@@ -3,20 +3,20 @@ import { useProgress } from "../state/progress.jsx";
 import { buildPlan } from "../lib/plan.js";
 import TodayTasks from "./TodayTasks.jsx";
 
-const getNewPerDay = () => {
+const getDailyTarget = () => {
   try {
-    return Number(localStorage.getItem("esbd.newPerDay")) || 10;
+    return Number(localStorage.getItem("esbd.dailyTarget")) || 12;
   } catch {
-    return 10;
+    return 12;
   }
 };
 
 // Today = the actionable slice of your Study plan: what to do right now (introduce / reinforce /
-// examine / shore up), driven by your current progress.
+// examine / shore up), driven by your current progress and bounded to your daily target.
 export default function QueueHome({ questions, onOpen, onCommission }) {
   const { records } = useProgress();
   const { counts, today } = useMemo(
-    () => buildPlan(questions, records, { newPerDay: getNewPerDay() }),
+    () => buildPlan(questions, records, { dailyTarget: getDailyTarget() }),
     [questions, records]
   );
 

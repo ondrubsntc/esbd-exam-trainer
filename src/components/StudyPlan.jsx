@@ -4,7 +4,7 @@ import { buildPlan, daysUntil } from "../lib/plan.js";
 import TodayTasks from "./TodayTasks.jsx";
 
 const EXAM_KEY = "esbd.examDate";
-const NPD_KEY = "esbd.newPerDay";
+const DT_KEY = "esbd.dailyTarget";
 const getLocal = (k, fallback) => {
   try {
     return localStorage.getItem(k) ?? fallback;
@@ -24,35 +24,31 @@ function Segment({ pct, className, title }) {
   return pct > 0 ? <div className={className} style={{ width: `${pct}%` }} title={title} /> : null;
 }
 
-// Study plan (David's spiral): turns his current progress into a concrete daily to-do toward the exam.
+// Study plan (David's spiral): turns his current progress into a bounded, well-spread daily to-do.
 export default function StudyPlan({ questions, onOpen }) {
   const { records } = useProgress();
   const [examDate, setExamDate] = useState(() => getLocal(EXAM_KEY, "2026-06-22"));
-  const [newPerDay, setNewPerDay] = useState(() => Number(getLocal(NPD_KEY, "10")) || 10);
+  const [dailyTarget, setDailyTarget] = useState(() => Number(getLocal(DT_KEY, "12")) || 12);
 
-  const { counts, today } = useMemo(
-    () => buildPlan(questions, records, { newPerDay }),
-    [questions, records, newPerDay]
+  const { counts, today, remainingPasses } = useMemo(
+    () => buildPlan(questions, records, { dailyTarget }),
+    [questions, records, dailyTarget]
   );
 
   const total = questions.length;
   const days = daysUntil(examDate);
   const introducedSoFar = total - counts.new;
   const examinedSoFar = counts.examined;
-  const introDaysNeeded = counts.new > 0 ? Math.ceil(counts.new / newPerDay) : 0;
-  const projectedIntroDate = new Date();
-  projectedIntroDate.setDate(projectedIntroDate.getDate() + introDaysNeeded);
-  const introLate = introDaysNeeded > Math.max(0, days);
+  const todayCount = today.reinforce.length + today.examine.length + today.shoreUp.length + today.introduce.length;
 
-  const examLabel = new Date(examDate).toLocaleDateString(undefined, {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-  });
+  const daysNeeded = remainingPasses > 0 ? Math.ceil(remainingPasses / dailyTarget) : 0;
+  const finishDate = new Date();
+  finishDate.setDate(finishDate.getDate() + daysNeeded);
+  const late = daysNeeded > Math.max(0, days);
 
+  const examLabel = new Date(examDate).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
+  const finishLabel = finishDate.toLocaleDateString(undefined, { day: "numeric", month: "short" });
   const seg = (n) => (n / total) * 100;
-  const nothingToday =
-    !today.introduce.length && !today.reinforce.length && !today.examine.length && !today.shoreUp.length;
 
   return (
     <div className="mx-auto max-w-3xl px-8 py-8">
@@ -82,16 +78,16 @@ export default function StudyPlan({ questions, onOpen }) {
             />
           </label>
           <label className="text-xs text-stone-500">
-            <span className="mb-1 block">New / day</span>
+            <span className="mb-1 block">Tasks / day</span>
             <input
               type="number"
               min={1}
-              max={total}
-              value={newPerDay}
+              max={40}
+              value={dailyTarget}
               onChange={(e) => {
-                const n = Math.max(1, Math.min(total, Number(e.target.value) || 1));
-                setNewPerDay(n);
-                setLocal(NPD_KEY, String(n));
+                const n = Math.max(1, Math.min(40, Number(e.target.value) || 1));
+                setDailyTarget(n);
+                setLocal(DT_KEY, String(n));
               }}
               className="w-20 rounded-lg border border-stone-200 px-2 py-1.5 text-sm text-stone-700 focus:outline-none focus:ring-2 focus:ring-stone-300"
             />
@@ -118,27 +114,29 @@ export default function StudyPlan({ questions, onOpen }) {
       {/* Pace line */}
       <div
         className={`mt-4 rounded-lg border px-4 py-3 text-sm ${
-          introLate ? "border-amber-200 bg-amber-50 text-amber-800" : "border-stone-200 bg-stone-50 text-stone-600"
+          late ? "border-amber-200 bg-amber-50 text-amber-800" : "border-stone-200 bg-stone-50 text-stone-600"
         }`}
       >
         Introduced <span className="font-semibold">{introducedSoFar}/{total}</span> · examined{" "}
         <span className="font-semibold">{examinedSoFar}/{total}</span> ({counts.ready} solid).{" "}
-        {counts.new === 0
-          ? "All questions introduced — keep reinforcing and examining. 🎉"
-          : introLate
-          ? `At ${newPerDay}/day you'd finish introducing in ${introDaysNeeded} days — after the exam. Raise “New / day”.`
-          : `At ${newPerDay}/day you'll finish introducing in ${introDaysNeeded} day${
-              introDaysNeeded === 1 ? "" : "s"
-            } (by ${projectedIntroDate.toLocaleDateString(undefined, { day: "numeric", month: "short" })}).`}
+        {remainingPasses === 0
+          ? "Everything examined at least once 🎉 — keep shoring up the weak ones."
+          : late
+          ? `At ${dailyTarget} tasks/day you'd need ${daysNeeded} days to examine everything once — past the exam. Raise “Tasks / day”.`
+          : `At ${dailyTarget} tasks/day you'll have everything examined once in ~${daysNeeded} day${
+              daysNeeded === 1 ? "" : "s"
+            } (by ${finishLabel}) — ${days - daysNeeded} day${days - daysNeeded === 1 ? "" : "s"} before the exam.`}
       </div>
 
       {/* Today's plan */}
-      <h2 className="mt-8 text-sm font-semibold uppercase tracking-wide text-stone-400">Today's plan</h2>
-      {nothingToday ? (
+      <h2 className="mt-8 text-sm font-semibold uppercase tracking-wide text-stone-400">
+        Today's plan {todayCount > 0 && <span className="font-normal text-stone-400">· {todayCount} tasks</span>}
+      </h2>
+      {todayCount === 0 ? (
         <p className="mt-3 rounded-xl border border-dashed border-stone-200 bg-white/60 px-4 py-8 text-center text-sm text-stone-500">
-          {counts.new === 0 && counts.introduced === 0 && counts.reinforced === 0
+          {remainingPasses === 0 && counts.ready === total
             ? "You're exam-ready — everything examined and solid. 💪"
-            : "Nothing queued right now. Add more “New / day” or check Today for due reviews."}
+            : "Nothing queued right now. Raise “Tasks / day”, or you're all caught up for today. 🎉"}
         </p>
       ) : (
         <div className="mt-3">
