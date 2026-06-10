@@ -7,6 +7,16 @@ import FeedbackCard from "../FeedbackCard.jsx";
 
 const clampScore = (n) => Math.max(1, Math.min(5, Math.round(Number(n) || 0)));
 
+// Overall = the average of the three sub-scores (theory, practical, clarity), so it's always
+// consistent with them (the model's own "overall" sometimes didn't add up).
+function withAverageOverall(fb) {
+  const subs = [fb.theoryCoverage?.score, fb.practicalFit?.score, fb.clarity?.score].filter(
+    (n) => typeof n === "number"
+  );
+  if (!subs.length) return fb;
+  return { ...fb, overall: clampScore(subs.reduce((a, b) => a + b, 0) / subs.length) };
+}
+
 // An editable transcript box with optional live mic dictation (Web Speech API).
 function DictationBox({ value, onChange, placeholder, rows = 5 }) {
   const { supported, listening, start, stop } = useDictation((text) =>
@@ -72,8 +82,9 @@ export default function Step5Examiner({ question }) {
       const result = await callExaminer({ mode: "examiner", question, messages: convo, forceFinal });
       const isFinal = result.json && result.json.overall != null;
       if (isFinal) {
-        setFeedback(result.json);
-        applyExaminer(question.id, clampScore(result.json.overall), result.json);
+        const fb = withAverageOverall(result.json);
+        setFeedback(fb);
+        applyExaminer(question.id, clampScore(fb.overall), fb);
         setPhase("done");
       } else if (forceFinal) {
         setError("The examiner couldn't produce a verdict. Please retry.");

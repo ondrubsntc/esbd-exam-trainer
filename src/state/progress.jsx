@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
-import { applyExaminerScore, applyFlashcardRating, createRecord, worstRating } from "../lib/leitner.js";
+import { applyExaminerScore, applyFlashcardRating, averageRating, createRecord } from "../lib/leitner.js";
 
 // Single source of truth for per-question progress. Loads from the backend once, keeps the
 // authoritative map in memory, and debounce-saves the whole map back on every change.
@@ -103,7 +103,7 @@ export function ProgressProvider({ children }) {
       update(id, (r) => (r.steps[stepKey] ? r : { ...r, steps: { ...r.steps, [stepKey]: true } })),
     rateFlashcards: (id, ratings) =>
       update(id, (r) => {
-        const rated = applyFlashcardRating(r, worstRating(ratings));
+        const rated = applyFlashcardRating(r, averageRating(ratings));
         return { ...rated, steps: { ...rated.steps, flashcard: true } };
       }),
     applyExaminer: (id, score, feedback) =>

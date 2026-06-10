@@ -46,13 +46,14 @@ export function applyFlashcardRating(record, rating, now = new Date()) {
   return { ...transition(record, box, now, { event: "flashcard", rating }), lastConfidence: rating };
 }
 
-// Most conservative rating across a deck (you're only as solid as your weakest chunk).
-export function worstRating(ratings) {
+// Average the deck's ratings into one representative rating (again<hard<good<easy), so a
+// single weak card among strong ones doesn't drag the whole box down.
+const RATING_POINTS = { again: 0, hard: 1, good: 2, easy: 3 };
+export function averageRating(ratings) {
   if (!ratings.length) return "good";
-  return ratings.reduce(
-    (worst, r) => (FLASHCARD_RATINGS.indexOf(r) < FLASHCARD_RATINGS.indexOf(worst) ? r : worst),
-    "easy"
-  );
+  const avg = ratings.reduce((sum, r) => sum + (RATING_POINTS[r] ?? 1), 0) / ratings.length;
+  const idx = Math.max(0, Math.min(3, Math.round(avg)));
+  return FLASHCARD_RATINGS[idx];
 }
 
 // Examiner score (§5): score ≥ 4 → +1 box; score = 3 → stay; score ≤ 2 → box 1. (Used in M4.)

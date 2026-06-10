@@ -37,7 +37,7 @@ export default function FeedbackCard({ feedback, boxInfo }) {
       <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50 px-6 py-4">
         <div>
           <div className="text-xs font-semibold uppercase tracking-wide text-stone-400">Examiner verdict</div>
-          <div className="text-sm text-stone-500">Overall score</div>
+          <div className="text-sm text-stone-500">Overall · average of theory, practical &amp; clarity</div>
         </div>
         <div className={`flex h-12 w-12 items-center justify-center rounded-full text-xl font-bold ${scoreClasses(overall)}`}>
           {overall}
