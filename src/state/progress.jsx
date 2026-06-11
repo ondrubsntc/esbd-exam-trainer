@@ -100,7 +100,15 @@ export function ProgressProvider({ children }) {
     saveError,
     getRecord: (id) => records[id] ?? null,
     markStep: (id, stepKey) =>
-      update(id, (r) => (r.steps[stepKey] ? r : { ...r, steps: { ...r.steps, [stepKey]: true } })),
+      update(id, (r) =>
+        r.steps[stepKey]
+          ? r
+          : {
+              ...r,
+              steps: { ...r.steps, [stepKey]: true },
+              history: [...r.history, { ts: new Date().toISOString(), event: stepKey }],
+            }
+      ),
     rateFlashcards: (id, ratings) =>
       update(id, (r) => {
         const rated = applyFlashcardRating(r, averageRating(ratings));

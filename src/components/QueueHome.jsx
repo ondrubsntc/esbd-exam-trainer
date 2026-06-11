@@ -15,7 +15,7 @@ const getDailyTarget = () => {
 // examine / shore up), driven by your current progress and bounded to your daily target.
 export default function QueueHome({ questions, onOpen, onCommission }) {
   const { records } = useProgress();
-  const { counts, today } = useMemo(
+  const { counts, today, doneToday } = useMemo(
     () => buildPlan(questions, records, { dailyTarget: getDailyTarget() }),
     [questions, records]
   );
@@ -29,7 +29,8 @@ export default function QueueHome({ questions, onOpen, onCommission }) {
         <div>
           <h1 className="text-2xl font-semibold text-stone-900">Today</h1>
           <p className="mt-1 text-sm text-stone-500">
-            {taskCount} task{taskCount === 1 ? "" : "s"} from your plan · {counts.examined}/{questions.length} examined
+            {doneToday > 0 && `${doneToday} done · `}
+            {taskCount} left today · {counts.examined}/{questions.length} examined
           </p>
         </div>
         <button
@@ -43,8 +44,9 @@ export default function QueueHome({ questions, onOpen, onCommission }) {
       <div className="mt-8">
         {taskCount === 0 ? (
           <p className="rounded-xl border border-dashed border-stone-200 bg-white/60 px-4 py-8 text-center text-sm text-stone-500">
-            Nothing queued right now. Open <span className="font-medium">Study plan</span> to set your pace, or try
-            Commission mode.
+            {doneToday > 0
+              ? `Done for today 🎉 — ${doneToday} ${doneToday === 1 ? "activity" : "activities"} completed. Come back tomorrow.`
+              : "Nothing queued right now. Open Study plan to set your pace, or try Commission mode."}
           </p>
         ) : (
           <TodayTasks today={today} records={records} onOpen={onOpen} />

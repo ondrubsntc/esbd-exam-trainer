@@ -30,7 +30,7 @@ export default function StudyPlan({ questions, onOpen }) {
   const [examDate, setExamDate] = useState(() => getLocal(EXAM_KEY, "2026-06-22"));
   const [dailyTarget, setDailyTarget] = useState(() => Number(getLocal(DT_KEY, "12")) || 12);
 
-  const { counts, today, remainingPasses } = useMemo(
+  const { counts, today, remainingPasses, doneToday } = useMemo(
     () => buildPlan(questions, records, { dailyTarget }),
     [questions, records, dailyTarget]
   );
@@ -130,13 +130,17 @@ export default function StudyPlan({ questions, onOpen }) {
 
       {/* Today's plan */}
       <h2 className="mt-8 text-sm font-semibold uppercase tracking-wide text-stone-400">
-        Today's plan {todayCount > 0 && <span className="font-normal text-stone-400">· {todayCount} tasks</span>}
+        Today's plan
+        {doneToday > 0 && <span className="font-normal text-stone-400"> · {doneToday} done</span>}
+        {todayCount > 0 && <span className="font-normal text-stone-400"> · {todayCount} left</span>}
       </h2>
       {todayCount === 0 ? (
         <p className="mt-3 rounded-xl border border-dashed border-stone-200 bg-white/60 px-4 py-8 text-center text-sm text-stone-500">
-          {remainingPasses === 0 && counts.ready === total
+          {doneToday > 0
+            ? `Done for today 🎉 — ${doneToday} ${doneToday === 1 ? "activity" : "activities"} completed. Come back tomorrow.`
+            : remainingPasses === 0 && counts.ready === total
             ? "You're exam-ready — everything examined and solid. 💪"
-            : "Nothing queued right now. Raise “Tasks / day”, or you're all caught up for today. 🎉"}
+            : "Nothing queued right now. Raise “Tasks / day”."}
         </p>
       ) : (
         <div className="mt-3">
