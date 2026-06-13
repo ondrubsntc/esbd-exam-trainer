@@ -1,6 +1,5 @@
-import { useMemo } from "react";
 import { useProgress } from "../state/progress.jsx";
-import { buildPlan } from "../lib/plan.js";
+import { useTodayPlan } from "../state/useTodayPlan.js";
 import TodayTasks from "./TodayTasks.jsx";
 
 const getDailyTarget = () => {
@@ -11,17 +10,11 @@ const getDailyTarget = () => {
   }
 };
 
-// Today = the actionable slice of your Study plan: what to do right now (introduce / reinforce /
-// examine / shore up), driven by your current progress and bounded to your daily target.
+// Today = the actionable slice of your Study plan: the same fixed daily task set (introduce /
+// reinforce / examine / shore up), so completing a task removes only that task.
 export default function QueueHome({ questions, onOpen, onCommission }) {
   const { records } = useProgress();
-  const { counts, today, doneToday } = useMemo(
-    () => buildPlan(questions, records, { dailyTarget: getDailyTarget() }),
-    [questions, records]
-  );
-
-  const taskCount =
-    today.reinforce.length + today.examine.length + today.shoreUp.length + today.introduce.length;
+  const { counts, today, doneToday, left: taskCount } = useTodayPlan(questions, records, getDailyTarget());
 
   return (
     <div className="mx-auto max-w-3xl px-8 py-8">

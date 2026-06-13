@@ -1,6 +1,7 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useProgress } from "../state/progress.jsx";
-import { buildPlan, daysUntil } from "../lib/plan.js";
+import { daysUntil } from "../lib/plan.js";
+import { useTodayPlan } from "../state/useTodayPlan.js";
 import TodayTasks from "./TodayTasks.jsx";
 
 const EXAM_KEY = "esbd.examDate";
@@ -30,16 +31,16 @@ export default function StudyPlan({ questions, onOpen }) {
   const [examDate, setExamDate] = useState(() => getLocal(EXAM_KEY, "2026-06-22"));
   const [dailyTarget, setDailyTarget] = useState(() => Number(getLocal(DT_KEY, "12")) || 12);
 
-  const { counts, today, remainingPasses, doneToday } = useMemo(
-    () => buildPlan(questions, records, { dailyTarget }),
-    [questions, records, dailyTarget]
+  const { counts, today, remainingPasses, doneToday, left: todayCount } = useTodayPlan(
+    questions,
+    records,
+    dailyTarget
   );
 
   const total = questions.length;
   const days = daysUntil(examDate);
   const introducedSoFar = total - counts.new;
   const examinedSoFar = counts.examined;
-  const todayCount = today.reinforce.length + today.examine.length + today.shoreUp.length + today.introduce.length;
 
   const daysNeeded = remainingPasses > 0 ? Math.ceil(remainingPasses / dailyTarget) : 0;
   const finishDate = new Date();
