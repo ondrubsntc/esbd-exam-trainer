@@ -56,10 +56,11 @@ export function averageRating(ratings) {
   return FLASHCARD_RATINGS[idx];
 }
 
-// Examiner score (§5): score ≥ 4 → +1 box; score = 3 → stay; score ≤ 2 → box 1. (Used in M4.)
+// Examiner score: 5 → +2 boxes (acing it jumps you up); 4 → +1; 3 → stay; ≤ 2 → box 1.
 export function applyExaminerScore(record, score, now = new Date()) {
   let box;
-  if (score >= 4) box = record.box + 1;
+  if (score >= 5) box = record.box + 2;
+  else if (score === 4) box = record.box + 1;
   else if (score === 3) box = record.box;
   else box = 1;
   return { ...transition(record, box, now, { event: "examiner", score }), lastExaminerScore: score };

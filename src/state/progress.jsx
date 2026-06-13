@@ -42,16 +42,19 @@ export function ProgressProvider({ children }) {
     });
   }
 
-  const scheduleSave = useCallback((map) => {
+  const scheduleSave = useCallback((map, immediate = false) => {
     latestMap.current = map;
     unsaved.current = true;
     if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => {
+    const doSave = () =>
       persist(map).catch((e) => {
         console.error("Progress save failed:", e);
         setSaveError(true);
       });
-    }, 400);
+    // Box-changing events (flashcards/examiner) save right away so they can't be lost; the rest
+    // is debounced to coalesce rapid edits.
+    if (immediate) doSave();
+    else saveTimer.current = setTimeout(doSave, 400);
   }, []);
 
   // Flush a pending save synchronously when the tab is closing/hidden (keepalive survives unload).
@@ -80,14 +83,14 @@ export function ProgressProvider({ children }) {
   }, []);
 
   const update = useCallback(
-    (questionId, updater) => {
+    (questionId, updater, immediate = false) => {
       setRecords((prev) => {
         const current = prev[questionId] ?? createRecord(questionId);
         const next = updater(current);
         if (next === current) return prev; // idempotent no-op → don't re-save
         dirty.current = true;
         const map = { ...prev, [questionId]: next };
-        scheduleSave(map);
+        scheduleSave(map, immediate);
         return map;
       });
     },
@@ -110,20 +113,28 @@ export function ProgressProvider({ children }) {
             }
       ),
     rateFlashcards: (id, ratings) =>
-      update(id, (r) => {
-        const rated = applyFlashcardRating(r, averageRating(ratings));
-        return { ...rated, steps: { ...rated.steps, flashcard: true } };
-      }),
+      update(
+        id,
+        (r) => {
+          const rated = applyFlashcardRating(r, averageRating(ratings));
+          return { ...rated, steps: { ...rated.steps, flashcard: true } };
+        },
+        true // save the box change immediately
+      ),
     applyExaminer: (id, score, feedback) =>
-      update(id, (r) => {
-        const graded = applyExaminerScore(r, score); // sets box, due, lastExaminerScore
-        return {
-          ...graded,
-          lastExaminerFeedback: feedback ?? r.lastExaminerFeedback ?? null,
-          lastExaminerAt: new Date().toISOString(),
-          steps: { ...graded.steps, examiner: true },
-        };
-      }),
+      update(
+        id,
+        (r) => {
+          const graded = applyExaminerScore(r, score); // sets box, due, lastExaminerScore
+          return {
+            ...graded,
+            lastExaminerFeedback: feedback ?? r.lastExaminerFeedback ?? null,
+            lastExaminerAt: new Date().toISOString(),
+            steps: { ...graded.steps, examiner: true },
+          };
+        },
+        true // save the box change immediately
+      ),
   };
 
   return <ProgressContext.Provider value={value}>{children}</ProgressContext.Provider>;
