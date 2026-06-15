@@ -56,12 +56,10 @@ export function averageRating(ratings) {
   return FLASHCARD_RATINGS[idx];
 }
 
-// Examiner score: 5 → +2 boxes (acing it jumps you up); 4 → +1; 3 → stay; ≤ 2 → box 1.
+// Examiner score sets the box directly — it's the closest thing to the real exam, so your score
+// is the best estimate of your level: 5 → box 5, 4 → box 4, 3 → box 3. It never lowers a box you've
+// already reached (a good answer shouldn't demote you); a weak answer (≤ 2) resets to box 1.
 export function applyExaminerScore(record, score, now = new Date()) {
-  let box;
-  if (score >= 5) box = record.box + 2;
-  else if (score === 4) box = record.box + 1;
-  else if (score === 3) box = record.box;
-  else box = 1;
+  const box = score <= 2 ? 1 : Math.max(record.box, score);
   return { ...transition(record, box, now, { event: "examiner", score }), lastExaminerScore: score };
 }
